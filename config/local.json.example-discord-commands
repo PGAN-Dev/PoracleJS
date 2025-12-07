@@ -1,0 +1,56 @@
+{
+  // Example configuration for Discord Command Instance
+  // This instance handles Discord commands ONLY
+  // Copy this to config/local.json for your command instance
+
+  "server": {
+      "host": "127.0.0.1",
+      "port": "3030"
+  },
+  
+  // Enable Redis for multi-instance coordination
+  "redis": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 6379,
+      "password": "",
+      "db": 0,
+      "instanceId": "discord-commands"  // Unique identifier for this instance
+  },
+  
+  // Instance-specific settings - ONLY enable Discord commands
+  "instance": {
+      "enableDiscordCommands": true,      // Enable Discord command processing
+      "enableTelegramCommands": false,    // Disable Telegram commands (or true if handling both)
+      "enableWebhookProcessing": false,   // Disable webhook processing - let other instances handle this
+      "enableWeatherProcessing": false,   // Disable weather processing
+      "enableStatsProcessing": false      // Disable stats processing
+  },
+  
+  "discord": {
+      "enabled": true,
+      "token": ["YOUR_DISCORD_BOT_TOKEN"],
+      "guilds": ["YOUR_GUILD_ID"],
+      "channels": ["YOUR_CHANNEL_ID"],
+      "userRole": ["YOUR_ROLE_ID"],
+      "admins": ["YOUR_ADMIN_ID"],
+      "checkRole": true,
+      "checkRoleInterval": 6
+  },
+  
+  "telegram": {
+      "enabled": false  // Disable telegram on this instance
+  },
+  
+  "database": {
+      "client": "mysql",
+      "conn": {
+          "host": "127.0.0.1",
+          "port": 3306,
+          "user": "poracle",
+          "password": "your_password",
+          "database": "poracle",
+          "charset": "utf8mb4"
+      }
+  }
+}

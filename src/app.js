@@ -29,6 +29,7 @@ const TelegramReconciliation = require('./lib/telegram/telegramReconciliation')
 const PogoEventParser = require('./lib/pogoEventParser')
 const scannerFactory = require('./lib/scanner/scannerFactory')
 const ShinyPossible = require('./lib/shinyLoader')
+const RedisManager = require('./lib/redisManager')
 
 const { Config } = require('./lib/configFetcher')
 const GameData = require('./lib/GameData')
@@ -64,6 +65,7 @@ const Query = require('./controllers/query')
 const query = new Query(logs.controller, knex, config, geofence)
 const pogoEventParser = new PogoEventParser(logs.log)
 const shinyPossible = new ShinyPossible(logs.log)
+const redisManager = new RedisManager(config, logs.log)
 
 const gymCache = pcache.load('gymCache', path.join(__dirname, '../.cache'))
 
@@ -84,8 +86,11 @@ fastify.decorate('translatorFactory', translatorFactory)
 fastify.decorate('discordQueue', [])
 fastify.decorate('telegramQueue', [])
 fastify.decorate('hookQueue', [])
+fastify.decorate('redisManager', redisManager)
 
-const discordCommando = config.discord.enabled ? new DiscordCommando(config.discord.token[0], query, scannerQuery, config, logs, GameData, PoracleInfo, dts, geofence, translatorFactory) : null
+// Only enable Discord commands on designated command instance
+const enableDiscordCommands = config.instance?.enableDiscordCommands ?? true
+const discordCommando = (config.discord.enabled && enableDiscordCommands) ? new DiscordCommando(config.discord.token[0], query, scannerQuery, config, logs, GameData, PoracleInfo, dts, geofence, translatorFactory) : null
 const discordWorkers = []
 let discordWebhookWorker
 let telegram
@@ -104,10 +109,11 @@ if (config.discord.enabled) {
 }
 
 if (config.telegram.enabled) {
-	telegram = new TelegramWorker('1', config, logs, GameData, PoracleInfo, dts, geofence, telegramController, query, scannerQuery, telegraf, translatorFactory, telegramCommandParser, re, true)
+	const enableTelegramCommands = config.instance?.enableTelegramCommands ?? true
+	telegram = new TelegramWorker('1', config, logs, GameData, PoracleInfo, dts, geofence, telegramController, query, scannerQuery, telegraf, translatorFactory, telegramCommandParser, re, enableTelegramCommands)
 
 	if (telegrafChannel) {
-		telegramChannel = new TelegramWorker('2', config, logs, GameData, PoracleInfo, dts, geofence, telegramController, query, scannerQuery, telegrafChannel, translatorFactory, telegramCommandParser, re, true)
+		telegramChannel = new TelegramWorker('2', config, logs, GameData, PoracleInfo, dts, geofence, telegramController, query, scannerQuery, telegrafChannel, translatorFactory, telegramCommandParser, re, enableTelegramCommands)
 	}
 }
 
@@ -184,6 +190,11 @@ function handleShutdown() {
 	if (telegram) workerSaves.push(telegram.saveTimeouts())
 	if (telegramChannel) workerSaves.push(telegramChannel.saveTimeouts())
 	if (discordWebhookWorker) workerSaves.push(discordWebhookWorker.saveTimeouts())
+
+	// Disconnect Redis
+	if (redisManager.enabled) {
+		workerSaves.push(redisManager.disconnect())
+	}
 
 	gymCache.save(true)
 	Promise.all(workerSaves)
@@ -396,6 +407,13 @@ async function processMessages(msgs) {
 			worker.commandPort.postMessage({
 				type: 'badguys',
 				badguys,
+			})
+		}
+		
+		// Broadcast to other instances via Redis
+		if (redisManager.enabled) {
+			redisManager.publishBadguysUpdate(badguys).catch((err) => {
+				log.error('Failed to publish badguys update to Redis', err)
 			})
 		}
 	}
@@ -951,6 +969,90 @@ async function run() {
 	process.on('SIGINT', handleShutdown)
 	process.on('SIGTERM', handleShutdown)
 
+	// Initialize Redis for multi-instance coordination
+	if (redisManager.enabled) {
+		try {
+			await redisManager.connect()
+			
+			// Handle incoming Redis messages from other instances
+			redisManager.on('refreshAlertCache', (data) => {
+				log.info(`[Redis] Received alert refresh request from instance ${data.instanceId}`)
+				sendCommandToWorkers({
+					type: 'refreshAlertCache',
+				})
+			})
+
+			redisManager.on('reloadGeofence', (data) => {
+				log.info(`[Redis] Received geofence reload request from instance ${data.instanceId}`)
+				try {
+					sendCommandToWorkers({
+						type: 'reloadGeofence',
+					})
+					sendCommandToWeather({
+						type: 'reloadGeofence',
+					})
+					const newGeofence = require('./lib/geofenceLoader').readAllGeofenceFiles(config)
+					geofence.rbush = newGeofence.rbush
+					geofence.geofence = newGeofence.geofence
+				} catch (err) {
+					log.error('[Redis] Error reloading geofence', err)
+				}
+			})
+
+			redisManager.on('reloadDts', (data) => {
+				log.info(`[Redis] Received DTS reload request from instance ${data.instanceId}`)
+				try {
+					sendCommandToWorkers({
+						type: 'reloadDts',
+					})
+					sendCommandToWeather({
+						type: 'reloadDts',
+					})
+					const newDts = require('./lib/dtsloader').readDtsFiles()
+					dts.splice(0, dts.length, ...newDts)
+				} catch (err) {
+					log.error('[Redis] Error reloading dts', err)
+				}
+			})
+
+			redisManager.on('eventBroadcast', (message) => {
+				log.info(`[Redis] Received event broadcast from instance ${message.instanceId}`)
+				for (const relayWorker of workers) {
+					relayWorker.commandPort.postMessage({
+						type: 'eventBroadcast',
+						data: message.data,
+					})
+				}
+			})
+
+			redisManager.on('shinyBroadcast', (message) => {
+				log.info(`[Redis] Received shiny broadcast from instance ${message.instanceId}`)
+				for (const relayWorker of workers) {
+					relayWorker.commandPort.postMessage({
+						type: 'shinyBroadcast',
+						data: message.data,
+					})
+				}
+			})
+
+			redisManager.on('badguysUpdate', (message) => {
+				log.info(`[Redis] Received badguys update from instance ${message.instanceId}`)
+				for (const relayWorker of workers) {
+					relayWorker.commandPort.postMessage({
+						type: 'badguys',
+						badguys: message.badguys,
+					})
+				}
+			})
+
+			log.info('[Redis] Multi-instance coordination enabled')
+		} catch (err) {
+			log.error('[Redis] Failed to initialize, continuing without multi-instance support', err)
+		}
+	} else {
+		log.info('[Redis] Multi-instance coordination disabled')
+	}
+
 	if (config.pvp.dataSource === 'internal' || config.pvp.dataSource === 'compare') {
 		initialiseOhbem()
 	}
@@ -1004,6 +1106,13 @@ async function run() {
 			// This splice mechanism replaces array in place (relies on no caching)
 			const newDts = require('./lib/dtsloader').readDtsFiles()
 			dts.splice(0, dts.length, ...newDts)
+			
+			// Broadcast to other instances
+			if (redisManager.enabled) {
+				redisManager.publishDtsReload().catch((err) => {
+					log.error('Failed to publish DTS reload to Redis', err)
+				})
+			}
 		} catch (err) {
 			log.error('Error reloading dts', err)
 		}
@@ -1073,6 +1182,13 @@ async function run() {
 			sendCommandToWorkers({
 				type: 'refreshAlertCache',
 			})
+			
+			// Broadcast to other instances via Redis
+			if (redisManager.enabled) {
+				redisManager.publishAlertRefresh().catch((err) => {
+					log.error('Failed to publish alert refresh to Redis', err)
+				})
+			}
 		})
 	}
 
@@ -1116,6 +1232,13 @@ async function run() {
 			sendCommandToWorkers({
 				type: 'refreshAlertCache',
 			})
+			
+			// Broadcast to other instances via Redis
+			if (redisManager.enabled) {
+				redisManager.publishAlertRefresh().catch((err) => {
+					log.error('Failed to publish alert refresh to Redis', err)
+				})
+			}
 		})
 	}
 
@@ -1123,6 +1246,13 @@ async function run() {
 		sendCommandToWorkers({
 			type: 'refreshAlertCache',
 		})
+		
+		// Broadcast to other instances via Redis
+		if (redisManager.enabled) {
+			redisManager.publishAlertRefresh().catch((err) => {
+				log.error('Failed to publish alert refresh to Redis', err)
+			})
+		}
 	})
 
 	const routeFiles = await readDir(`${__dirname}/routes/`)

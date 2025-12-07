@@ -1,0 +1,63 @@
+{
+  // Example configuration for Webhook Processing Instance
+  // This instance processes Pokemon/Raid/Quest webhooks ONLY
+  // Copy this to config/local.json for your webhook processing instances
+
+  "server": {
+      "host": "0.0.0.0",  // Listen on all interfaces to receive webhooks
+      "port": "3031"      // Use different port for each instance (3031, 3032, etc.)
+  },
+  
+  // Enable Redis for multi-instance coordination
+  "redis": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 6379,
+      "password": "",
+      "db": 0,
+      "instanceId": "webhook-processor-1"  // Unique identifier (webhook-processor-1, webhook-processor-2, etc.)
+  },
+  
+  // Instance-specific settings - ONLY enable webhook processing
+  "instance": {
+      "enableDiscordCommands": false,     // Disable Discord commands - let command instance handle this
+      "enableTelegramCommands": false,    // Disable Telegram commands
+      "enableWebhookProcessing": true,    // Enable webhook processing
+      "enableWeatherProcessing": true,    // Enable weather processing
+      "enableStatsProcessing": true       // Enable stats processing
+  },
+  
+  // Discord workers for sending messages, but no command bot
+  "discord": {
+      "enabled": true,
+      "token": ["YOUR_DISCORD_BOT_TOKEN"],  // Same token as command instance for sending messages
+      "guilds": ["YOUR_GUILD_ID"],
+      "channels": [],  // No channels needed on webhook instance
+      "userRole": [],
+      "admins": [],
+      "checkRole": false,  // Disable role checking on webhook instances
+      "checkRoleInterval": 0
+  },
+  
+  "telegram": {
+      "enabled": false  // Or true if you want to send Telegram messages from this instance
+  },
+  
+  "database": {
+      "client": "mysql",
+      "conn": {
+          "host": "127.0.0.1",
+          "port": 3306,
+          "user": "poracle",
+          "password": "your_password",
+          "database": "poracle",
+          "charset": "utf8mb4"
+      }
+  },
+  
+  // Tuning - can scale these per instance
+  "tuning": {
+      "webhookProcessingWorkers": 4,      // Adjust based on your load
+      "maxDatabaseConnections": 20
+  }
+}
