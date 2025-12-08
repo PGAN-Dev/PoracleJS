@@ -1122,11 +1122,11 @@ async function run() {
 		try {
 			log.info('Starting discord workers')
 
-			await discordCommando.start()
+			if (discordCommando) await discordCommando.start()
 			for (const discordWorker of discordWorkers) {
 				await discordWorker.start()
 			}
-			await discordWebhookWorker.start()
+			if (discordWebhookWorker) await discordWebhookWorker.start()
 
 			fastify.decorate('discordClient', discordWorkers[0].client)
 		} catch (err) {
@@ -1170,6 +1170,7 @@ async function run() {
 			setTimeout(syncDiscordRole, 10000)
 		}
 
+	if (discordCommando) {
 		discordCommando.on('sendMessages', (res) => {
 			processMessages(res)
 		})
@@ -1191,8 +1192,7 @@ async function run() {
 			}
 		})
 	}
-
-	if (config.telegram.enabled) {
+}	if (config.telegram.enabled) {
 		try {
 			log.info('Starting telegram workers')
 
@@ -1220,6 +1220,7 @@ async function run() {
 			setTimeout(syncTelegramMembership, 30000)
 		}
 
+	if (telegram) {
 		telegram.on('sendMessages', (res) => {
 			processMessages(res)
 		})
@@ -1241,8 +1242,7 @@ async function run() {
 			}
 		})
 	}
-
-	fastify.decorate('triggerReloadAlerts', () => {
+}	fastify.decorate('triggerReloadAlerts', () => {
 		sendCommandToWorkers({
 			type: 'refreshAlertCache',
 		})

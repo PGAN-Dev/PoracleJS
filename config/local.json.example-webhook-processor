@@ -2,6 +2,8 @@
   // Example configuration for Webhook Processing Instance
   // This instance processes Pokemon/Raid/Quest webhooks ONLY
   // Copy this to config/local.json for your webhook processing instances
+  // IMPORTANT: You must copy ALL required config from your main local.json
+  // This example shows the MINIMUM overrides needed for webhook processing
 
   "server": {
       "host": "0.0.0.0",  // Listen on all interfaces to receive webhooks
@@ -43,6 +45,12 @@
       "enabled": false  // Or true if you want to send Telegram messages from this instance
   },
   
+  // Area security must be defined (copy from your main config)
+  "areaSecurity": {
+      "enabled": false,
+      "everythingFlagPermissions": []  // Required field - copy your actual permissions from main config
+  },
+  
   "database": {
       "client": "mysql",
       "conn": {
@@ -60,4 +68,8 @@
       "webhookProcessingWorkers": 4,      // Adjust based on your load
       "maxDatabaseConnections": 20
   }
+  
+  // NOTE: For production use, it's better to copy your ENTIRE main local.json
+  // and only change: server.port, redis.instanceId, and instance.* settings
+  // This ensures you have all required config values
 }

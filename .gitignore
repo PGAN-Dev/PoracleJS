@@ -36,3 +36,4 @@ backups/*.json
 /src/util/items.json
 /src/util/types.json
 /src/util/locale/*.json
+ecosystem.config.js

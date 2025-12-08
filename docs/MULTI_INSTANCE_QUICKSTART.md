@@ -4,6 +4,9 @@ This is a quick reference for setting up PoracleJS in multi-instance mode.
 
 ## Prerequisites
 
+- **Working PoracleJS installation** with `config/local.json` already configured
+- **Redis** installed and running
+
 ```powershell
 # Install Redis (Windows with Chocolatey)
 choco install redis-64
@@ -20,55 +23,78 @@ npm install
 
 ## Minimal Setup (2 instances)
 
-### Instance 1: Discord Commands (Port 3030)
+**Add to your existing `config/local.json`:**
 
-`config-discord/local.json`:
 ```json
 {
-  "server": { "port": "3030" },
+  // Your existing config (discord, database, etc.)
+  // ...
+  
+  // Add these new sections:
   "redis": {
     "enabled": true,
-    "instanceId": "discord-commands"
+    "host": "127.0.0.1",
+    "port": 6379
   },
   "instance": {
     "enableDiscordCommands": true,
-    "enableWebhookProcessing": false
-  },
-  "discord": {
-    "enabled": true,
-    "token": ["YOUR_TOKEN"],
-    "checkRole": true
-  }
-}
-```
-
-### Instance 2: Webhook Processing (Port 3031)
-
-`config-webhook/local.json`:
-```json
-{
-  "server": { "host": "0.0.0.0", "port": "3031" },
-  "redis": {
-    "enabled": true,
-    "instanceId": "webhook-processor-1"
-  },
-  "instance": {
-    "enableDiscordCommands": false,
     "enableWebhookProcessing": true
-  },
-  "discord": {
-    "enabled": true,
-    "token": ["YOUR_TOKEN"],
-    "checkRole": false
   }
 }
 ```
 
-## Run
+### Using PM2 with Environment Variable Overrides
+
+Create `ecosystem.config.js` in your PoracleJS directory:
+
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: 'poracle-discord-commands',
+      script: 'poracle.js',
+      cwd: '/your/path/to/PoracleJS',  // UPDATE THIS PATH
+      env: {
+        PORACLE_INSTANCE_ID: 'discord-commands',
+        NODE_APP_INSTANCE: '',
+        server__port: '3030',
+        redis__enabled: 'true',
+        redis__instanceId: 'discord-commands',
+        instance__enableDiscordCommands: 'true',
+        instance__enableWebhookProcessing: 'false'
+      }
+    },
+    {
+      name: 'poracle-webhook-1',
+      script: 'poracle.js',
+      cwd: '/your/path/to/PoracleJS',  // UPDATE THIS PATH
+      env: {
+        PORACLE_INSTANCE_ID: 'webhook-processor-1',
+        NODE_APP_INSTANCE: '',
+        server__host: '0.0.0.0',
+        server__port: '3031',
+        redis__enabled: 'true',
+        redis__instanceId: 'webhook-processor-1',
+        instance__enableDiscordCommands: 'false',
+        instance__enableWebhookProcessing: 'true',
+        discord__checkRole: 'false'
+      }
+    }
+  ]
+}
+```
+
+### Run
 
 ```powershell
-# Terminal 1 - Discord Commands
-$env:NODE_CONFIG_DIR="./config-discord"
+pm2 start ecosystem.config.js
+pm2 save
+pm2 logs
+```
+
+**Alternative: Manual Start (Without PM2)**
+
+If you don't use PM2, start instances manually in separate terminals:
 node poracle.js
 
 # Terminal 2 - Webhook Processing

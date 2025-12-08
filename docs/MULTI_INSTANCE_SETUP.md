@@ -50,9 +50,11 @@ npm install
 
 This will install the `ioredis` package added to support multi-instance coordination.
 
-### 2. Configure Redis Connection
+### 2. Configure Your Existing config/local.json
 
-In your `config/local.json`, add the Redis configuration:
+**IMPORTANT**: You must already have a working `config/local.json` file with your Discord tokens, database settings, etc. Multi-instance support does NOT auto-create configs.
+
+Add these sections to your **existing** `config/local.json`:
 
 ```json
 {
