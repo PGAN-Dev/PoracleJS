@@ -140,6 +140,16 @@ if (config.discord.enabled) {
 	}
 	fastify.decorate('discordWorker', discordWorkers[0])
 	discordWebhookWorker = new DiscordWebhookWorker(config, logs, true, query)
+
+		// Startup info: log how many discord workers were created for this process
+		try {
+			const totalTokens = Array.isArray(config.discord.token) ? config.discord.token.length : 0
+			const enabledWorkers = discordWorkers.length
+			log.info(`Discord workers: ${enabledWorkers} enabled of ${totalTokens} configured token(s) for this process`)
+			if (enabledWorkers === 0) log.warn('No Discord workers were created for this process — check that the config provides a valid token for this instance')
+		} catch (err) {
+			log.debug('Failed to log discord worker startup info', err)
+		}
 }
 
 if (config.telegram.enabled) {
