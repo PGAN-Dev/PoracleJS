@@ -88,6 +88,40 @@ fastify.decorate('telegramQueue', [])
 fastify.decorate('hookQueue', [])
 fastify.decorate('redisManager', redisManager)
 
+// Helper: optionally inject instance id into outgoing message payloads for debugging
+const os = require('os')
+const instanceId = config.instance?.id || process.env.INSTANCE_ID || os.hostname()
+const instanceInjectEnabled = !!(config.instance && config.instance.includeInstanceIdInAlerts)
+
+function injectInstanceIdIntoJob(job) {
+	if (!instanceInjectEnabled || !job || !job.message) return job
+	try {
+		// If message has an embed, add/append to embed.footer.text
+		if (job.message.embed) {
+			job.message.embed.footer = job.message.embed.footer || {}
+			const existing = job.message.embed.footer.text ? `${job.message.embed.footer.text} ` : ''
+			job.message.embed.footer.text = `${existing}[inst:${instanceId}]`
+		} else if (job.message.embeds && Array.isArray(job.message.embeds) && job.message.embeds.length) {
+			const e = job.message.embeds[0]
+			e.footer = e.footer || {}
+			const existing = e.footer.text ? `${e.footer.text} ` : ''
+			e.footer.text = `${existing}[inst:${instanceId}]`
+		} else if (job.message.content || job.message.text) {
+			// Append instance id to textual content
+			if (typeof job.message.content === 'string') job.message.content = `${job.message.content}\n[inst:${instanceId}]`
+			else if (typeof job.message.text === 'string') job.message.text = `${job.message.text}\n[inst:${instanceId}]`
+			else job.message.content = `[inst:${instanceId}]`
+		} else {
+			// Fallback: attach a small debug property (non-Discord) so webhook workers can still log it
+			job.message.__instance = instanceId
+		}
+	} catch (err) {
+		// don't fail job processing for injection errors
+		fastify.log.debug(`Failed to inject instance id into job message: ${err.message}`)
+	}
+	return job
+}
+
 // Only enable Discord commands on designated command instance
 const enableDiscordCommands = config.instance?.enableDiscordCommands ?? true
 const discordCommando = (config.discord.enabled && enableDiscordCommands) ? new DiscordCommando(config.discord.token[0], query, scannerQuery, config, logs, GameData, PoracleInfo, dts, geofence, translatorFactory) : null
@@ -360,8 +394,14 @@ async function processMessages(msgs) {
 		}
 
 		if (queueMessage) {
-			if (['discord:user', 'discord:channel', 'webhook'].includes(queueMessage.type)) fastify.discordQueue.push(queueMessage)
-			if (['telegram:user', 'telegram:channel', 'telegram:group'].includes(queueMessage.type)) fastify.telegramQueue.push(queueMessage)
+			if (['discord:user', 'discord:channel', 'webhook'].includes(queueMessage.type)) {
+				injectInstanceIdIntoJob(queueMessage)
+				fastify.discordQueue.push(queueMessage)
+			}
+			if (['telegram:user', 'telegram:channel', 'telegram:group'].includes(queueMessage.type)) {
+				injectInstanceIdIntoJob(queueMessage)
+				fastify.telegramQueue.push(queueMessage)
+			}
 			if (logMessage && config.discord.dmLogChannelID) {
 				fastify.discordQueue.push({
 					lat: 0,

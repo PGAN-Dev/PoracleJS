@@ -500,17 +500,20 @@ class Monster extends Controller {
 					if (this.imgUicons) data.imgUrl = await this.imgUicons.pokemonIcon(data.pokemon_id, data.form, 0, data.gender, data.costume, 0, data.shinyPossible && this.config.general.requestShinyImages) || this.config.fallbacks?.imgUrl
 					if (this.imgUiconsAlt) data.imgUrlAlt = await this.imgUiconsAlt.pokemonIcon(data.pokemon_id, data.form, 0, data.gender, data.costume, 0, data.shinyPossible && this.config.general.requestShinyImages) || this.config.fallbacks?.imgUrl
 					if (this.stickerUicons) data.stickerUrl = await this.stickerUicons.pokemonIcon(data.pokemon_id, data.form, 0, data.gender, data.costume, 0, data.shinyPossible && this.config.general.requestShinyImages)
+					this.log.verbose(`${logReference}: debug after uicons`)
 
 					const geoResult = await this.getAddress({
 						lat: data.latitude,
 						lon: data.longitude,
 					})
+					this.log.verbose(`${logReference}: debug got address`)
 
 					const jobs = []
 
 					require('./common/nightTime').setNightTime(data, disappearTime, this.config)
 
 					data.intersection = await this.obtainIntersection(data)
+					this.log.verbose(`${logReference}: debug got intersection`)
 
 					if (data.seen_type) {
 						switch (data.seen_type) {
@@ -558,6 +561,7 @@ class Monster extends Controller {
 						['pokemon_id', 'latitude', 'longitude', 'form', 'costume', 'imgUrl', 'imgUrlAlt', 'style'],
 						['pokemon_id', 'display_pokemon_id', 'latitude', 'longitude', 'verified', 'costume', 'form', 'pokemonId', 'generation', 'weather', 'confirmedTime', 'shinyPossible', 'seenType', 'seen_type', 'cell_coords', 'imgUrl', 'imgUrlAlt', 'nightTime', 'duskTime', 'dawnTime', 'style'],
 					)
+					this.log.verbose(`${logReference}: debug after getStaticMapUrl`)
 					data.staticmap = data.staticMap // deprecated
 
 					// get Weather Forecast information
@@ -565,6 +569,7 @@ class Monster extends Controller {
 					const { nextHourTimestamp } = this.weatherData.getWeatherTimes()
 					if (this.config.weather.enableWeatherForecast && data.disappear_time > nextHourTimestamp) {
 						const weatherForecast = await this.weatherData.getWeatherForecast(weatherCellId)
+						this.log.verbose(`${logReference}: debug got weatherForecast`)
 
 						let pokemonShouldBeBoosted = false
 						let pokemonWillBeBoosted = false
@@ -605,6 +610,7 @@ class Monster extends Controller {
 					// Lookup pokestop name if needed
 					if (this.config.general.populatePokestopName && !data.pokestopName && data.pokestop_id && this.scannerQuery) {
 						data.pokestopName = this.escapeJsonString(await this.scannerQuery.getPokestopName(data.pokestop_id))
+						this.log.verbose(`${logReference}: debug got pokestopName`)
 					}
 
 					for (const cares of consolidatedAlerts) {
@@ -885,7 +891,9 @@ class Monster extends Controller {
 						}
 
 						const templateType = (data.iv === -1) ? 'monsterNoIv' : 'monster'
+						this.log.verbose(`${logReference}: debug before createMessage`)
 						const message = await this.createMessage(logReference, templateType, platform, cares.template, language, cares.ping, view)
+						this.log.verbose(`${logReference}: debug after createMessage`)
 
 						const work = {
 							lat: data.latitude.toString()

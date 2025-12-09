@@ -28,6 +28,24 @@ module.exports = async (fastify, options) => {
 		}))
 
 		data.forEach((job) => {
+			// Optionally inject instance id into message for debugging
+			try {
+				const instanceId = fastify.config.instance?.id || process.env.INSTANCE_ID || require('os').hostname()
+				const inject = !!(fastify.config.instance && fastify.config.instance.includeInstanceIdInAlerts)
+				if (inject && job && job.message) {
+					if (job.message.embed) {
+						job.message.embed.footer = job.message.embed.footer || {}
+						job.message.embed.footer.text = `${job.message.embed.footer.text ? job.message.embed.footer.text + ' ' : ''}[inst:${instanceId}]`
+					} else if (job.message.content) {
+						job.message.content = `${job.message.content}\n[inst:${instanceId}]`
+					} else {
+						job.message.__instance = instanceId
+					}
+				}
+			} catch (err) {
+				fastify.log.debug(`Failed to inject instance id into api job: ${err.message}`)
+			}
+
 			if (['discord:user', 'discord:channel', 'webhook'].includes(job.type)) fastify.discordQueue.push(job)
 			if (['telegram:user', 'telegram:channel'].includes(job.type)) fastify.telegramQueue.push(job)
 		})
