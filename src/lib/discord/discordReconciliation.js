@@ -289,8 +289,33 @@ class DiscordReconciliation {
 				// If a community does not have any user roles, perhaps we should be taking those communities into account
 				// later -- but the @everyone group could be added by users in config
 				for (const community of Object.keys(this.config.areaSecurity.communities)) {
-					if (roleList.some((role) => this.config.areaSecurity.communities[community].discord?.userRole?.includes(role))) {
-						communityList.push(community.toLowerCase())
+					try {
+						const communityCfg = this.config.areaSecurity.communities[community] || {}
+						const discordCfg = communityCfg.discord || {}
+						let communityRoles = discordCfg.userRole || []
+						// Normalize to array
+						if (!Array.isArray(communityRoles)) communityRoles = [communityRoles]
+
+						// If no roles defined for the community skip
+						if (!communityRoles.length) continue
+
+						// By default requireSome (any) is used. If requireAllRoles is truthy, user must have ALL roles
+						const requireAll = !!discordCfg.requireAllRoles
+
+						if (requireAll) {
+							// user must have every role in communityRoles
+							if (communityRoles.every((r) => roleList.includes(r))) {
+								communityList.push(community.toLowerCase())
+							}
+						} else {
+							// default behaviour: user needs at least one of the community roles
+							if (communityRoles.some((r) => roleList.includes(r))) {
+								communityList.push(community.toLowerCase())
+							}
+						}
+					} catch (err) {
+						// don't let a malformed community config break reconciliation for other communities
+						this.log.warn(`Reconciliation (Discord) Skipping community ${community} due to config error: ${err.message}`)
 					}
 				}
 
