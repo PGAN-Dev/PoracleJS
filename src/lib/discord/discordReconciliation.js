@@ -38,7 +38,7 @@ class DiscordReconciliation {
 
 			const discordUser = await this.client.users.fetch(id)
 
-			const greetingDts = this.dts.find((template) => template.type === 'greeting' && template.platform === 'discord' && template.default)
+			const greetingDts = this.dts.slice().reverse().find((template) => template.type === 'greeting' && template.platform === 'discord' && template.default)
 			const view = { prefix: this.config.discord.prefix }
 			const greeting = this.mustache.compile(JSON.stringify(greetingDts.template)) /* grrr */
 			await discordUser.createDM()

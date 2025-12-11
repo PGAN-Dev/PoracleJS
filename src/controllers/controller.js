@@ -91,26 +91,26 @@ class Controller extends EventEmitter {
 		}
 
 		// Exact match
-		let findDts = this.dts.find((template) => template.type === templateType && template.id && template.id.toString().toLowerCase() === templateName.toString() && template.platform === platform && template.language === language)
+		let findDts = this.dts.slice().reverse().find((template) => template.type === templateType && template.id && template.id.toString().toLowerCase() === templateName.toString() && template.platform === platform && template.language === language)
 
 		// First right template and platform and no language (likely backward compatible choice)
 		if (!findDts) {
-			findDts = this.dts.find((template) => template.type === templateType && template.id && template.id.toString().toLowerCase() === templateName.toString() && template.platform === platform && !template.language)
+			findDts = this.dts.slice().reverse().find((template) => template.type === templateType && template.id && template.id.toString().toLowerCase() === templateName.toString() && template.platform === platform && !template.language)
 		}
 
 		// Default of right template type, platform and language
 		if (!findDts) {
-			findDts = this.dts.find((template) => template.type === templateType && template.default && template.platform === platform && template.language === language)
+			findDts = this.dts.slice().reverse().find((template) => template.type === templateType && template.default && template.platform === platform && template.language === language)
 		}
 
 		// First default of right template type and platform with empty language
 		if (!findDts) {
-			findDts = this.dts.find((template) => template.type === templateType && template.default && template.platform === platform && !template.language)
+			findDts = this.dts.slice().reverse().find((template) => template.type === templateType && template.default && template.platform === platform && !template.language)
 		}
 
 		// First default of right template type and platform
 		if (!findDts) {
-			findDts = this.dts.find((template) => template.type === templateType && template.default && template.platform === platform)
+			findDts = this.dts.slice().reverse().find((template) => template.type === templateType && template.default && template.platform === platform)
 		}
 
 		if (!findDts) {

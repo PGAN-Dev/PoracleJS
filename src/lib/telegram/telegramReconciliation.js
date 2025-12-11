@@ -21,7 +21,7 @@ class TelegramReconciliation {
 
 	async sendGreetings(id) {
 		if (!this.config.telegram.disableAutoGreetings) {
-			const greetingDts = this.dts.find((template) => template.type === 'greeting' && template.platform === 'telegram' && template.default)
+			const greetingDts = this.dts.slice().reverse().find((template) => template.type === 'greeting' && template.platform === 'telegram' && template.default)
 			if (greetingDts) {
 				const view = { prefix: '/' }
 				const compileMustache = this.mustache.compile(JSON.stringify(greetingDts.template))
