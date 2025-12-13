@@ -38,7 +38,7 @@ class NominatimGeocoder {
 			// Timeout Logic
 		}, timeoutMs)
 
-		const url = new URL(command + this.baseUrl)
+		const url = new URL(this.baseUrl, command)
 		url.search = new URLSearchParams(params).toString()
 
 		const response = await axios({
