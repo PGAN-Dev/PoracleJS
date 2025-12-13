@@ -2,18 +2,7 @@ const axios = require('axios')
 
 class NominatimGeocoder {
 	constructor(url, timeout) {
-		// Normalize provider URL: trim, ensure it has a protocol, and validate
-		let base = url ? String(url).trim() : ''
-		if (base && !/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(base)) {
-			base = `http://${base}`
-		}
-		try {
-			// Validate URL format
-			new URL(base)
-		} catch (err) {
-			throw new Error(`Invalid geocoding.providerURL: ${url}`)
-		}
-		this.baseUrl = base
+		this.baseUrl = url
 		this.timeout = timeout || 10000
 	}
 
