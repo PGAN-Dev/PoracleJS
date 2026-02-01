@@ -1188,6 +1188,8 @@ async function run() {
 				return
 			}
 
+			const workerCount = BigInt(discordWorkers.length)
+
 			// Dequeue onto individual queues as fast as possible
 			while (fastify.discordQueue.length) {
 				const { target, type } = fastify.discordQueue[0]
@@ -1195,20 +1197,22 @@ async function run() {
 				if (type === 'webhook') {
 					discordWorker = discordWebhookWorker
 				} else {
-					// see if target has dedicated worker
-					discordWorker = discordWorkers.find((workerr) => workerr.users.includes(target))
-					if (!discordWorker) {
-						let busyestWorkerHumanCount = Number.POSITIVE_INFINITY
-						let laziestWorkerId
-						Object.keys(discordWorkers).map((i) => {
-							if (discordWorkers[i].userCount < busyestWorkerHumanCount) {
-								busyestWorkerHumanCount = discordWorkers[i].userCount
-								laziestWorkerId = i
-							}
-						})
-						busyestWorkerHumanCount = Number.POSITIVE_INFINITY
-						discordWorker = discordWorkers[laziestWorkerId]
-						discordWorker.addUser(target)
+					// Deterministic bot assignment based on user ID.
+					// Same user always maps to same bot across all instances,
+					// as long as the discord.token array is identical.
+					const targetBigInt = BigInt(target)
+					const primaryIndex = Number(targetBigInt % workerCount)
+					discordWorker = discordWorkers[primaryIndex]
+
+					// Fall back to least-loaded if the assigned bot is down
+					if (discordWorker.busy) {
+						const fallback = discordWorkers.filter((w) => !w.busy)
+						if (fallback.length) {
+							fallback.sort((a, b) => a.discordQueue.length - b.discordQueue.length)
+							discordWorker = fallback[0]
+						}
+						// If all bots are busy, use the primary anyway — it will
+						// queue and send once the bot reconnects
 					}
 				}
 
