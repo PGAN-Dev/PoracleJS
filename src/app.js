@@ -30,6 +30,7 @@ const PogoEventParser = require('./lib/pogoEventParser')
 const scannerFactory = require('./lib/scanner/scannerFactory')
 const ShinyPossible = require('./lib/shinyLoader')
 const RedisManager = require('./lib/redisManager')
+const BotSelector = require('./lib/botSelector')
 
 const { Config } = require('./lib/configFetcher')
 const GameData = require('./lib/GameData')
@@ -331,7 +332,7 @@ async function initialiseOhbem() {
 
 const UserRateChecker = require('./userRateLimit')
 
-const rateChecker = new UserRateChecker(config)
+const rateChecker = new UserRateChecker(config, redisManager.enabled ? redisManager.publisher : null)
 
 const maxWorkers = config.tuning.webhookProcessingWorkers
 
@@ -341,7 +342,7 @@ async function processMessages(msgs) {
 	for (const msg of msgs) {
 		const destinationId = msg.type === 'webhook' ? msg.name : msg.target
 		const destinationType = msg.type
-		const rate = rateChecker.validateMessage(destinationId, destinationType)
+		const rate = await rateChecker.validateMessage(destinationId, destinationType)
 
 		let queueMessage
 		let logMessage = null
@@ -358,7 +359,7 @@ async function processMessages(msgs) {
 				log.info(`${msg.logReference}: Stopping alerts (Rate limit) for ${msg.type} ${msg.target} ${msg.name} Time to release: ${rate.resetTime}`)
 
 				if (config.alertLimits.maxLimitsBeforeStop) {
-					const userCheck = rateChecker.userIsBanned(destinationId, destinationType)
+					const userCheck = await rateChecker.userIsBanned(destinationId, destinationType)
 					if (!userCheck.canContinue) {
 						queueMessage = {
 							...msg,
@@ -1183,40 +1184,32 @@ async function run() {
 			log.error('Error starting discord workers', err)
 		}
 
-		setInterval(() => {
-			if (!fastify.discordQueue.length) {
+		const botSelector = new BotSelector(
+			discordWorkers.length,
+			redisManager.enabled && redisManager.connected ? redisManager.publisher : null,
+		)
+
+		let processing = false
+		setInterval(async () => {
+			if (processing || !fastify.discordQueue.length) {
 				return
 			}
-
-			const workerCount = BigInt(discordWorkers.length)
-
-			// Dequeue onto individual queues as fast as possible
-			while (fastify.discordQueue.length) {
-				const { target, type } = fastify.discordQueue[0]
-				let discordWorker
-				if (type === 'webhook') {
-					discordWorker = discordWebhookWorker
-				} else {
-					// Deterministic bot assignment based on user ID.
-					// Same user always maps to same bot across all instances,
-					// as long as the discord.token array is identical.
-					const targetBigInt = BigInt(target)
-					const primaryIndex = Number(targetBigInt % workerCount)
-					discordWorker = discordWorkers[primaryIndex]
-
-					// Fall back to least-loaded if the assigned bot is down
-					if (discordWorker.busy) {
-						const fallback = discordWorkers.filter((w) => !w.busy)
-						if (fallback.length) {
-							fallback.sort((a, b) => a.discordQueue.length - b.discordQueue.length)
-							discordWorker = fallback[0]
-						}
-						// If all bots are busy, use the primary anyway — it will
-						// queue and send once the bot reconnects
+			processing = true
+			try {
+				while (fastify.discordQueue.length) {
+					const { target, type } = fastify.discordQueue[0]
+					let discordWorker
+					if (type === 'webhook') {
+						discordWorker = discordWebhookWorker
+					} else {
+						discordWorker = await botSelector.selectWorker(discordWorkers, target)
 					}
+					discordWorker.work(fastify.discordQueue.shift())
 				}
-
-				discordWorker.work(fastify.discordQueue.shift())
+			} catch (err) {
+				log.error('Error in discord dequeue loop', err)
+			} finally {
+				processing = false
 			}
 		}, 100)
 
