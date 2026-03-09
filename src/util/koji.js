@@ -24,12 +24,31 @@ const getKojiFences = async () => {
 						})
 							.then((res) => res.json())
 							.then((json) => {
+								let data = json.data
+								// Merge group data from group_map.json if available
+								// (workaround for Koji bulk endpoint not resolving parent names for group field)
+								const groupMapPath = resolve(__dirname, '../../config/group_map.json')
+								if (Array.isArray(data) && fs.existsSync(groupMapPath)) {
+									try {
+										const groupMap = JSON.parse(fs.readFileSync(groupMapPath, 'utf8'))
+										let merged = 0
+										for (const item of data) {
+											if (item.name && groupMap[item.name] && !item.group) {
+												item.group = groupMap[item.name]
+												merged++
+											}
+										}
+										log.info(`[KŌJI] Merged ${merged} group mappings from group_map.json`)
+									} catch (e) {
+										log.warn(`[KŌJI] Could not merge group_map.json: ${e.message}`)
+									}
+								}
 								fs.writeFileSync(
 									resolve(
 										__dirname,
 										`../../.cache/${fencePath.replace(/\//g, '__')}.json`,
 									),
-									JSON.stringify(json.data, null, 2),
+									JSON.stringify(data, null, 2),
 									'utf8',
 								)
 							})
