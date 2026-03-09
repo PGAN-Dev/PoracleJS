@@ -332,7 +332,7 @@ async function initialiseOhbem() {
 
 const UserRateChecker = require('./userRateLimit')
 
-const rateChecker = new UserRateChecker(config, redisManager.enabled ? redisManager.publisher : null)
+const rateChecker = new UserRateChecker(config, redisManager.enabled ? redisManager : null)
 
 const maxWorkers = config.tuning.webhookProcessingWorkers
 

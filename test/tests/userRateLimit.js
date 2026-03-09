@@ -17,7 +17,7 @@ function makeConfig(overrides = {}) {
 /**
  * Create a mock Redis client that behaves like ioredis for INCR/EXPIRE/TTL
  */
-function makeMockRedis() {
+function makeMockRedisClient() {
 	const store = {}
 
 	return {
@@ -39,6 +39,19 @@ function makeMockRedis() {
 			if (!store[key]) return -2
 			return store[key].ttl
 		},
+	}
+}
+
+/**
+ * Wrap a mock Redis client in a redisManager-like object
+ */
+function makeMockRedis() {
+	const client = makeMockRedisClient()
+	return {
+		enabled: true,
+		connected: true,
+		publisher: client,
+		_store: client._store,
 	}
 }
 

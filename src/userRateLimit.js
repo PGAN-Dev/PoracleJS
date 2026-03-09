@@ -1,11 +1,18 @@
 const NodeCache = require('node-cache')
 
 class UserRateChecker {
-	constructor(config, redisClient) {
+	constructor(config, redisManager) {
 		this.config = config
-		this.redisClient = redisClient || null
+		this.redisManager = redisManager || null
 		this.discordCache = new NodeCache({ useClones: false, stdTTL: this.config.alertLimits.timingPeriod })
 		this.limitCount = new NodeCache({ stdTTL: (24 * 60 * 60) })
+	}
+
+	_getRedisClient() {
+		if (this.redisManager && this.redisManager.enabled && this.redisManager.connected) {
+			return this.redisManager.publisher
+		}
+		return null
 	}
 
 	// eslint-disable-next-line no-unused-vars
@@ -26,8 +33,9 @@ class UserRateChecker {
 		const messageTimeout = this.getMessageTimeout(id, type)
 		const messageLimit = this.getMessageLimit(id, type)
 
-		if (this.redisClient) {
-			return this._validateMessageRedis(id, messageTimeout, messageLimit)
+		const redis = this._getRedisClient()
+		if (redis) {
+			return this._validateMessageRedis(redis, id, messageTimeout, messageLimit)
 		}
 		return this._validateMessageLocal(id, messageTimeout, messageLimit)
 	}
@@ -65,14 +73,14 @@ class UserRateChecker {
 		}
 	}
 
-	async _validateMessageRedis(id, messageTimeout, messageLimit) {
+	async _validateMessageRedis(redis, id, messageTimeout, messageLimit) {
 		const key = `poracle:ratelimit:${id}`
-		const newCount = await this.redisClient.incr(key)
+		const newCount = await redis.incr(key)
 		if (newCount === 1) {
-			await this.redisClient.expire(key, messageTimeout)
+			await redis.expire(key, messageTimeout)
 		}
 
-		const ttl = await this.redisClient.ttl(key)
+		const ttl = await redis.ttl(key)
 		const resetTime = ttl > 0 ? ttl : messageTimeout
 
 		if (newCount > messageLimit) {
@@ -120,8 +128,9 @@ class UserRateChecker {
 	 */
 	// eslint-disable-next-line no-unused-vars
 	async userIsBanned(id, type) {
-		if (this.redisClient) {
-			return this._userIsBannedRedis(id)
+		const redis = this._getRedisClient()
+		if (redis) {
+			return this._userIsBannedRedis(redis, id)
 		}
 		return this._userIsBannedLocal(id)
 	}
@@ -157,17 +166,17 @@ class UserRateChecker {
 		}
 	}
 
-	async _userIsBannedRedis(id) {
+	async _userIsBannedRedis(redis, id) {
 		const key = `poracle:ratelimit:ban:${id}`
 		const messageLimit = this.config.alertLimits.maxLimitsBeforeStop
 		const messageTimeout = 24 * 60 * 60
 
-		const newCount = await this.redisClient.incr(key)
+		const newCount = await redis.incr(key)
 		if (newCount === 1) {
-			await this.redisClient.expire(key, messageTimeout)
+			await redis.expire(key, messageTimeout)
 		}
 
-		const ttl = await this.redisClient.ttl(key)
+		const ttl = await redis.ttl(key)
 		const resetTime = ttl > 0 ? ttl : messageTimeout
 
 		return {
