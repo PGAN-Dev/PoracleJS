@@ -261,6 +261,7 @@ class FortUpdate extends Controller {
 					tthh: data.tth.hours,
 					tthm: data.tth.minutes,
 					tths: data.tth.seconds,
+					countdown: `<t:${data.reset_time + (7 * 24 * 60 * 60)}:R>`,
 					time: time.format(this.config.locale.time),
 					nowISO: now.toISOString(),
 					areas: data.matchedAreas.filter((area) => area.displayInMatches).map((area) => area.name).join(', '),

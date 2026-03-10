@@ -188,6 +188,7 @@ class Lure extends Controller {
 							tthh: data.tth.hours,
 							tthm: data.tth.minutes,
 							tths: data.tth.seconds,
+							countdown: `<t:${data.lure_expiration}:R>`,
 							now: new Date(),
 							nowISO: new Date().toISOString(),
 							areas: data.matchedAreas.filter((area) => area.displayInMatches)

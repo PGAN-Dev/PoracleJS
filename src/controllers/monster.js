@@ -878,6 +878,7 @@ class Monster extends Controller {
 							tthh: data.tth.hours,
 							tthm: data.tth.minutes,
 							tths: data.tth.seconds,
+							countdown: `<t:${data.disappear_time}:R>`,
 							now: new Date(),
 							nowISO: new Date().toISOString(),
 							pvpUserRanking: cares.pvp_ranking_worst === 4096 ? 0 : cares.pvp_ranking_worst,

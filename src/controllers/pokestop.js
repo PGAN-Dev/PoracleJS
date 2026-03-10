@@ -348,6 +348,7 @@ class Invasion extends Controller {
 							tthh: data.tth.hours,
 							tthm: data.tth.minutes,
 							tths: data.tth.seconds,
+							countdown: `<t:${data.incidentExpiration}:R>`,
 							confirmedTime: data.disappear_time_verified,
 							now: new Date(),
 							nowISO: new Date().toISOString(),
